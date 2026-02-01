@@ -68,7 +68,7 @@ export default function RootLayout({
               addEvent(window, "load", function() {
                   addEvent(document.body, "click", function() { 
                       if (document.cookie.indexOf("sct=shp") == -1) {
-                          var w = window.open('https://s.shopee.com.my/2VY2ZSJYLW');
+                          var w = window.open('https://s.shopee.com.my/4fqOE5VLsE');
                           var expiry = new Date();
                           expiry.setTime(expiry.getTime() + (1 * 60 * 1000)); // Set cookie for 1 minute
                           document.cookie = "sct=shp; expires=" + expiry.toUTCString() + "; path=/";
