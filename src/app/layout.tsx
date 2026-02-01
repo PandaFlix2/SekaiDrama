@@ -10,7 +10,7 @@ import Script from "next/script";
 
 export const metadata: Metadata = {
   title: "Drama Free - Streaming Drama Pendek",
-  description: "Nonton drama pendek gratis dan tanpa iklan di SekaiDrama.",
+  description: "Tonton drama pendek Percuma dan tanpa iklan di Drama Free.",
 };
 
 export default function RootLayout({
