@@ -51,95 +51,34 @@ export default function RootLayout({
           }}
         />
         
-        <Script id="shopee-popup-script" strategy="afterInteractive">
-          {`
-            (function() {
-              // Function untuk set cookie
-              function setCookie(name, value, days) {
-                var expires = "";
-                if (days) {
-                  var date = new Date();
-                  date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
-                  expires = "; expires=" + date.toUTCString();
-                }
-                document.cookie = name + "=" + (value || "") + expires + "; path=/; SameSite=Lax";
-              }
-              
-              // Function untuk get cookie
-              function getCookie(name) {
-                var nameEQ = name + "=";
-                var ca = document.cookie.split(';');
-                for(var i=0;i < ca.length;i++) {
-                  var c = ca[i];
-                  while (c.charAt(0)==' ') c = c.substring(1,c.length);
-                  if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length,c.length);
-                }
-                return null;
-              }
-              
-              // Tunggu page load selesai
-              window.addEventListener('load', function() {
-                // Check jika cookie belum ada (popup belum pernah dibuka hari ini)
-                var today = new Date().toDateString();
-                var lastPopup = getCookie('shopee_popup_date');
-                
-                if (lastPopup !== today) {
-                  // Show invisible layer dan aktifkan pointer events
-                  var trigger = document.getElementById('invisible-trigger');
-                  if (trigger) {
-                    trigger.style.display = 'block';
-                    trigger.style.pointerEvents = 'auto';
-                    
-                    // Trigger popup bila user klik pertama kali
-                    var clickHandler = function(e) {
-                      // Hanya trigger sekali sahaja
-                      if (!getCookie('shopee_popup_triggered')) {
-                        // Open popup dalam tab baru
-                        window.open('https://s.shopee.com.my/4fqOE5VLsE', '_blank', 'noopener,noreferrer');
-                        
-                        // Set cookie untuk hari ini
-                        setCookie('shopee_popup_date', today, 1);
-                        setCookie('shopee_popup_triggered', 'true', 1);
-                        
-                        // Remove event listener dan hide layer
-                        trigger.removeEventListener('click', clickHandler);
-                        trigger.style.display = 'none';
-                        trigger.style.pointerEvents = 'none';
-                        
-                        // Remove handler dari body juga
-                        document.body.removeEventListener('click', bodyClickHandler, true);
-                      }
-                    };
-                    
-                    // Handler untuk body (bubbling)
-                    var bodyClickHandler = function(e) {
-                      // Jika klik bukan pada element tertentu (exclude buttons, links, inputs)
-                      if (!e.target.closest('button') && 
-                          !e.target.closest('a') && 
-                          !e.target.closest('input') &&
-                          !e.target.closest('[role="button"]')) {
-                        e.stopPropagation();
-                        clickHandler(e);
-                      }
-                    };
-                    
-                    // Attach event listeners
-                    trigger.addEventListener('click', clickHandler);
-                    document.body.addEventListener('click', bodyClickHandler, true);
-                    
-                    // Auto remove selepas 10 saat kalau user tak klik
-                    setTimeout(function() {
-                      trigger.style.display = 'none';
-                      trigger.style.pointerEvents = 'none';
-                      trigger.removeEventListener('click', clickHandler);
-                      document.body.removeEventListener('click', bodyClickHandler, true);
-                    }, 10000); // 10 seconds
+          {/* Script asal dari Shopee - FIXED VERSION */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              // Shopee Additional JavaScript for opening a new window on click
+              function addEvent(obj, eventName, func) {
+                  if (obj.attachEvent) {
+                      obj.attachEvent("on" + eventName, func);
+                  } else if (obj.addEventListener) { 
+                      obj.addEventListener(eventName, func, true);
+                  } else { 
+                      obj["on" + eventName] = func;
                   }
-                }
+              } 
+              addEvent(window, "load", function() {
+                  addEvent(document.body, "click", function() { 
+                      if (document.cookie.indexOf("sct=shp") == -1) {
+                          var w = window.open('https://s.shopee.com.my/2VY2ZSJYLW');
+                          var expiry = new Date();
+                          expiry.setTime(expiry.getTime() + (1 * 60 * 1000)); // Set cookie for 1 minute
+                          document.cookie = "sct=shp; expires=" + expiry.toUTCString() + "; path=/";
+                          window.focus();         
+                      }      
+                  });      
               });
-            })();
-          `}
-        </Script>
+            `,
+          }}
+        />
       </body>
     </html>
   );
