@@ -6,6 +6,7 @@ import { Footer } from "@/components/Footer";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Suspense } from "react";
+import Script from "next/script";
 
 export const metadata: Metadata = {
   title: "Drama Free - Streaming Drama Pendek",
@@ -35,30 +36,33 @@ export default function RootLayout({
           <Sonner />
         </Providers>
         
-        <script>
-          
-          // Shopee Additional JavaScript for opening a new window on click
-        function addEvent(obj, eventName, func) {
-            if (obj.attachEvent) {
-                obj.attachEvent("on" + eventName, func);
-            } else if (obj.addEventListener) { 
-                obj.addEventListener(eventName, func, true);
-            } else { 
-                obj["on" + eventName] = func;
-            }
-        } 
-        addEvent(window, "load", function() {
-            addEvent(document.body, "click", function() { 
-                if (document.cookie.indexOf("sct=shp") == -1) {
-                    var w = window.open('https://s.shopee.com.my/4fqOE5VLsE');
-                    var expiry = new Date();
-                    expiry.setTime(expiry.getTime() + (1 * 60 * 1000)); // Set cookie for 1 minute
-                    document.cookie = "sct=shp; expires=" + expiry.toUTCString() + "; path=/";
-                    window.focus();         
-                }      
-            });      
-        });
-      </script>
+        {/* Remove or properly implement this script */}
+        {/* 
+        <Script id="shopee-script" strategy="afterInteractive">
+          {`
+            function addEvent(obj, eventName, func) {
+                if (obj.attachEvent) {
+                    obj.attachEvent("on" + eventName, func);
+                } else if (obj.addEventListener) { 
+                    obj.addEventListener(eventName, func, true);
+                } else { 
+                    obj["on" + eventName] = func;
+                }
+            } 
+            addEvent(window, "load", function() {
+                addEvent(document.body, "click", function() { 
+                    if (document.cookie.indexOf("sct=shp") == -1) {
+                        var w = window.open('https://s.shopee.com.my/4fqOE5VLsE');
+                        var expiry = new Date();
+                        expiry.setTime(expiry.getTime() + (1 * 60 * 1000));
+                        document.cookie = "sct=shp; expires=" + expiry.toUTCString() + "; path=/";
+                        window.focus();         
+                    }      
+                });      
+            });
+          `}
+        </Script>
+        */}
       </body>
     </html>
   );
