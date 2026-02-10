@@ -6,7 +6,6 @@ import { Footer } from "@/components/Footer";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Suspense } from "react";
-import Script from "next/script";
 
 export const metadata: Metadata = {
   title: "Drama Free - Streaming Drama Pendek",
@@ -36,22 +35,6 @@ export default function RootLayout({
           <Sonner />
         </Providers>
         
-        {/* Invisible layer untuk trigger popup */}
-        <div 
-          id="invisible-trigger" 
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100vw',
-            height: '100vh',
-            pointerEvents: 'none',
-            zIndex: 999999,
-            display: 'none'
-          }}
-        />
-        
-        {/* Script Shopee - Smart Affiliate Strategy: 4 jam + 2 clicks */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -67,21 +50,19 @@ export default function RootLayout({
               
               addEvent(window, "load", function() {
                   let clickCount = 0;
-                  const maxClicksBeforePopup = 2; // Trigger selepas 2 kali click
+                  const maxClicksBeforePopup = 2;
                   
                   addEvent(document.body, "click", function() { 
-                      // Check cookie dulu - kalau cookie masih ada, skip
                       if (document.cookie.indexOf("sct=shp") == -1) {
                           clickCount++;
                           
-                          // Trigger popup selepas user click 2 kali
                           if (clickCount >= maxClicksBeforePopup) {
                               var w = window.open('https://s.shopee.com.my/4fqOE5VLsE');
                               var expiry = new Date();
-                              expiry.setTime(expiry.getTime() + (4 * 60 * 60 * 1000)); // 4 jam
+                              expiry.setTime(expiry.getTime() + (4 * 60 * 60 * 1000));
                               document.cookie = "sct=shp; expires=" + expiry.toUTCString() + "; path=/";
                               window.focus();
-                              clickCount = 0; // Reset counter selepas popup
+                              clickCount = 0;
                           }
                       }      
                   });      
@@ -93,11 +74,3 @@ export default function RootLayout({
     </html>
   );
 }
-```
-
-## Cara Berfungsi Sekarang:
-
-**User baru masuk:**
-```
-Click 1: Click menu/browse → No popup
-Click 2: Click drama → POPUP! ✅
