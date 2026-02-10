@@ -51,11 +51,10 @@ export default function RootLayout({
           }}
         />
         
-          {/* Script asal dari Shopee - FIXED VERSION */}
+        {/* Script Shopee - Smart Affiliate Strategy: 4 jam + 2 clicks */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
-              // Shopee Additional JavaScript for opening a new window on click
               function addEvent(obj, eventName, func) {
                   if (obj.attachEvent) {
                       obj.attachEvent("on" + eventName, func);
@@ -65,14 +64,25 @@ export default function RootLayout({
                       obj["on" + eventName] = func;
                   }
               } 
+              
               addEvent(window, "load", function() {
+                  let clickCount = 0;
+                  const maxClicksBeforePopup = 2; // Trigger selepas 2 kali click
+                  
                   addEvent(document.body, "click", function() { 
+                      // Check cookie dulu - kalau cookie masih ada, skip
                       if (document.cookie.indexOf("sct=shp") == -1) {
-                          var w = window.open('https://s.shopee.com.my/4fqOE5VLsE');
-                          var expiry = new Date();
-                          expiry.setTime(expiry.getTime() + (1 * 60 * 1000)); // Set cookie for 1 minute
-                          document.cookie = "sct=shp; expires=" + expiry.toUTCString() + "; path=/";
-                          window.focus();         
+                          clickCount++;
+                          
+                          // Trigger popup selepas user click 2 kali
+                          if (clickCount >= maxClicksBeforePopup) {
+                              var w = window.open('https://s.shopee.com.my/4fqOE5VLsE');
+                              var expiry = new Date();
+                              expiry.setTime(expiry.getTime() + (4 * 60 * 60 * 1000)); // 4 jam
+                              document.cookie = "sct=shp; expires=" + expiry.toUTCString() + "; path=/";
+                              window.focus();
+                              clickCount = 0; // Reset counter selepas popup
+                          }
                       }      
                   });      
               });
@@ -83,3 +93,11 @@ export default function RootLayout({
     </html>
   );
 }
+```
+
+## Cara Berfungsi Sekarang:
+
+**User baru masuk:**
+```
+Click 1: Click menu/browse → No popup
+Click 2: Click drama → POPUP! ✅
