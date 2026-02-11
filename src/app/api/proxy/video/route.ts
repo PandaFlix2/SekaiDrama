@@ -59,6 +59,45 @@ function nodeToWebStream(nodeStream: http.IncomingMessage): ReadableStream {
     });
 }
 
+// Helper: Detect if content is SRT format
+function isSrtContent(text: string): boolean {
+    // SRT format: starts with number, then timestamp with comma separator
+    const srtPattern = /^\s*\d+\s*[\r\n]+\d{2}:\d{2}:\d{2},\d{3}\s*-->\s*\d{2}:\d{2}:\d{2},\d{3}/;
+    return srtPattern.test(text);
+}
+
+// Helper: Convert SRT to VTT
+function convertSrtToVtt(srtContent: string): string {
+    let vttContent = srtContent
+        .replace(/\r\n/g, '\n')
+        .replace(/\r/g, '\n')
+        // Convert SRT timestamps (comma) to VTT timestamps (period)
+        .replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2')
+        .trim();
+    
+    // Add WEBVTT header if not present
+    if (!vttContent.startsWith('WEBVTT')) {
+        vttContent = "WEBVTT\n\n" + vttContent;
+    }
+    
+    return vttContent;
+}
+
+// Helper: Add positioning to VTT if not already present
+function addVttPositioning(vttContent: string): string {
+    return vttContent.replace(
+        /((?:\d{2}:)?\d{2}:\d{2}\.\d{3}\s*-->\s*(?:\d{2}:)?\d{2}:\d{2}\.\d{3})([^\n]*)/g,
+        (match, timeRange, rest) => {
+            // Don't modify if positioning already exists
+            if (rest.includes('line:') || rest.includes('position:') || rest.includes('align:')) {
+                return match;
+            }
+            // Add line positioning at 90% (near bottom but not cut off)
+            return `${timeRange} line:90%${rest}`;
+        }
+    );
+}
+
 export async function GET(req: NextRequest) {
   const urlParams = req.nextUrl.searchParams;
   const url = urlParams.get("url");
@@ -97,10 +136,16 @@ export async function GET(req: NextRequest) {
                    contentType.includes("application/x-mpegurl") ||
                    lowUrl.includes(".m3u8");
                    
-    const isVtt = contentType.includes("text/vtt") || lowUrl.endsWith(".vtt") || lowUrl.endsWith(".srt");
+    const isVtt = contentType.includes("text/vtt") || 
+                  contentType.includes("text/plain") && lowUrl.includes("vtt") ||
+                  lowUrl.endsWith(".vtt");
+    
+    const isSrt = contentType.includes("text/srt") ||
+                  contentType.includes("text/plain") && lowUrl.includes("srt") ||
+                  lowUrl.endsWith(".srt");
 
     // 3. IF BINARY (MP4, TS, etc) -> STREAM DIRECTLY
-    if (!isM3u8 && !isVtt && (lowUrl.includes(".mp4") || lowUrl.includes(".ts") || contentType.includes("video/"))) {
+    if (!isM3u8 && !isVtt && !isSrt && (lowUrl.includes(".mp4") || lowUrl.includes(".ts") || contentType.includes("video/"))) {
         const stream = nodeToWebStream(upstreamRes);
         
         const responseHeaders = new Headers();
@@ -122,19 +167,24 @@ export async function GET(req: NextRequest) {
         });
     }
 
-    // 4. IF TEXT/HLS -> BUFFER & REWRITE
+    // 4. IF TEXT/HLS/SUBTITLE -> BUFFER & REWRITE
     const buffer = await streamToBuffer(upstreamRes);
-    const decoder = new TextDecoder();
+    const decoder = new TextDecoder('utf-8', { fatal: false });
     
-    // Double check content (sometimes headers lie)
-    const firstChunk = decoder.decode(buffer.slice(0, 100)); 
+    // Check more content for better detection (first 1KB instead of 100 bytes)
+    const sampleSize = Math.min(buffer.length, 1024);
+    const firstChunk = decoder.decode(buffer.slice(0, sampleSize)); 
+    
     const isM3u8Content = firstChunk.includes("#EXTM3U");
+    const isSrtContent = isSrtContent(firstChunk);
+    const isVttContent = firstChunk.includes("WEBVTT");
     
     // DETERMINE VALID ORIGIN for rewrites
     const host = req.headers.get("x-forwarded-host") || req.headers.get("host");
     const proto = req.headers.get("x-forwarded-proto") || "https"; 
     const origin = `${proto}://${host}`;
 
+    // Handle M3U8 playlists
     if (isM3u8 || isM3u8Content) {
         const text = decoder.decode(buffer);
         const baseUrl = new URL(finalUrl); 
@@ -152,6 +202,7 @@ export async function GET(req: NextRequest) {
                 return base;
             };
 
+            // Handle URIs in tags (like #EXT-X-KEY)
             if (trimmed.startsWith('#')) {
                 return line.replace(/URI="([^"]+)"/g, (match, uri) => {
                     try {
@@ -161,18 +212,24 @@ export async function GET(req: NextRequest) {
                 });
             }
             
+            // Handle segment URLs
             try {
                 const absoluteUrl = new URL(trimmed, baseUrl.href).href;
                 return createProxyUrl(absoluteUrl);
             } catch (e) { return line; }
         }).join('\n');
 
+        // Inject subtitle if provided
         if (isMasterPlaylist && subUrl) {
             let proxiedSubUrl = `${origin}/api/proxy/video?url=${encodeURIComponent(subUrl)}`;
             if (refererParam) proxiedSubUrl += `&referer=${encodeURIComponent(refererParam)}`;
             
             const mediaLine = `#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="Indonesia",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE="id",URI="${proxiedSubUrl}"`;
+            
+            // Insert subtitle media tag after #EXTM3U
             rewritten = rewritten.replace("#EXTM3U", "#EXTM3U\n" + mediaLine);
+            
+            // Add SUBTITLES reference to stream variants
             rewritten = rewritten.replace(/#EXT-X-STREAM-INF:(.*)/g, (match, attrs) => {
                 if (attrs.includes("SUBTITLES=")) return match; 
                 return `#EXT-X-STREAM-INF:${attrs},SUBTITLES="subs"`;
@@ -189,26 +246,28 @@ export async function GET(req: NextRequest) {
         });
     }
 
-    // VTT/SRT Logic
-    if (isVtt || lowUrl.endsWith(".srt")) {
+    // Handle VTT/SRT Subtitles
+    if (isVtt || isSrt || isVttContent || isSrtContent) {
        let vttContent = decoder.decode(buffer);
-       const isSrt = lowUrl.includes(".srt");
        
-       if (isSrt && !firstChunk.includes("WEBVTT")) {
-           vttContent = vttContent.replace(/\r\n/g, '\n')
-                        .replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2');
+       // Convert SRT to VTT if needed
+       if ((isSrt || isSrtContent) && !vttContent.trim().startsWith('WEBVTT')) {
+           console.log('Converting SRT to VTT format');
+           vttContent = convertSrtToVtt(vttContent);
+       }
+       
+       // Ensure WEBVTT header is present
+       if (!vttContent.trim().startsWith('WEBVTT')) {
            vttContent = "WEBVTT\n\n" + vttContent;
        }
        
-       vttContent = vttContent.replace(
-           /((?:\d{2}:)?\d{2}:\d{2}\.\d{3} --> (?:\d{2}:)?\d{2}:\d{2}\.\d{3})(.*)/g, 
-           (match, time, rest) => rest.includes("line:") ? match : `${time} line:75%${rest}`
-       );
+       // Add positioning only if not already present
+       vttContent = addVttPositioning(vttContent);
 
        return new NextResponse(vttContent, {
          status: 200,
          headers: {
-           "Content-Type": "text/vtt",
+           "Content-Type": "text/vtt; charset=utf-8",
            "Access-Control-Allow-Origin": "*",
            "Cache-Control": "no-store",
          }
@@ -219,13 +278,13 @@ export async function GET(req: NextRequest) {
     return new NextResponse(buffer as any, {
         status: upstreamRes.statusCode || 200,
         headers: {
-            "Content-Type": contentType,
+            "Content-Type": contentType || "application/octet-stream",
             "Access-Control-Allow-Origin": "*",
         }
     });
 
   } catch (error) {
     console.error("Proxy error:", error);
-    return new NextResponse("Internal Server Error", { status: 500 });
+    return new NextResponse(`Internal Server Error: ${error instanceof Error ? error.message : 'Unknown error'}`, { status: 500 });
   }
 }
