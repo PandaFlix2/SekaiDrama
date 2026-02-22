@@ -25,7 +25,13 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await safeJson(response);
-    return encryptedResponse(data);
+
+    // Filter out non-drama results (e.g. type:"actor") that have no bookId
+    const filtered = Array.isArray(data)
+      ? data.filter((item: any) => item.bookId)
+      : data;
+
+    return encryptedResponse(filtered);
   } catch (error) {
     console.error("API Error:", error);
     return NextResponse.json(
@@ -34,4 +40,3 @@ export async function GET(request: NextRequest) {
     );
   }
 }
-
